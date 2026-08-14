@@ -124,6 +124,28 @@ class FundSpec(BaseModel):
         description="what the fund measures itself against; also the source "
         "of the backtest's trading-day grid",
     )
+    swing: str | None = Field(
+        default=None,
+        description="name of a swing profile (conservative | balanced | "
+        "aggressive_swing) to run this fund under. None — the default — is "
+        "stock upstream behaviour: no risk-based sizing, no stops, no "
+        "holding-period limit. Setting it turns on the swing layer.",
+    )
+
+    @field_validator("swing")
+    @classmethod
+    def _known_profile(cls, name: str | None) -> str | None:
+        if name is None:
+            return None
+        # Imported here to keep the config package off the import path for
+        # funds that never use swing mode.
+        from hedge_fund.config.swing_trading_config import PROFILES
+
+        if name not in PROFILES:
+            raise ValueError(
+                f"unknown swing profile {name!r}; available: {sorted(PROFILES)}"
+            )
+        return name
 
     @field_validator("benchmark")
     @classmethod

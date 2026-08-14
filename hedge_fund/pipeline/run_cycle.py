@@ -37,7 +37,12 @@ from hedge_fund.data.protocol import DataClient
 from hedge_fund.fund.spec import Fund, normalize_universe
 from hedge_fund.models import Signal
 from hedge_fund.pipeline.execution import build_orders
-from hedge_fund.pipeline.models import CycleRecord, StrategyRecord, TickerSkip
+from hedge_fund.pipeline.models import (
+    CycleRecord,
+    StrategyRecord,
+    SwingExitRecord,
+    TickerSkip,
+)
 from hedge_fund.portfolio.construction import blend_signals
 from hedge_fund.risk.limits import apply_limits
 
@@ -52,12 +57,22 @@ def run_cycle(
     broker: Broker,
     data_client: DataClient,
     universe: list[str],
+    *,
+    swing=None,
 ) -> CycleRecord:
     """Run one tick of *fund* over *universe* as of *as_of* (YYYY-MM-DD).
 
     The universe is an argument, not a mandate field: a fund is its desk —
     strategies, staff, risk, capital — and can be pointed at any names. What
     it was asked to trade this tick is recorded on the returned CycleRecord.
+
+    *swing* is an optional SwingContext. When None (the default, and what
+    every upstream caller passes) this function behaves exactly as before.
+    When supplied, three stages change: position sizing becomes risk-based
+    rather than conviction-normalised, the swing risk stack runs after the
+    master limits, and the exit engine can force positions closed. Master
+    risk still runs and still has the last word — swing sizing proposes,
+    the mandate's hard limits dispose.
     """
     spec = fund.spec
     universe = normalize_universe(universe)
@@ -105,12 +120,42 @@ def run_cycle(
             weights=blend.weights,
         ))
 
+    # ---- swing mode: resize on risk, gate, then force exits -------------
+    swing_clamps = []
+    swing_exits: list[SwingExitRecord] = []
+    heat = None
+    stops: dict[str, float] = {}
+    atrs: dict[str, float] = {}
+
+    if swing is not None:
+        all_signals = [s for sr in strategy_records for s in sr.signals]
+        held_weights = {
+            t: p.shares * marks[t] / equity_before for t, p in held.items()
+        }
+        netted, atrs = swing.resize(netted, marks, as_of, data_client)
+        swing_risk = swing.gate(
+            netted, marks, atrs, all_signals, held_weights, as_of, data_client
+        )
+        netted = swing_risk.weights
+        swing_clamps = swing_risk.clamps
+        heat = swing_risk.heat_used
+        stops = swing_risk.stops
+
+        # An exit outranks any target: a stopped-out name goes to zero even
+        # if the analysts still like it. Evaluated on today's bar.
+        for decision in swing.exits(list(held), as_of, data_client):
+            netted[decision.ticker] = 0.0
+            swing_exits.append(SwingExitRecord(**decision.__dict__))
+
     risk = apply_limits(netted, spec.risk)
 
     orders = build_orders(risk.weights, held, marks, equity_before)
     fills: list[Fill] = [broker.place_order(o) for o in orders]
 
     positions_after = {t: p.shares for t, p in broker.positions().items()}
+
+    if swing is not None:
+        swing.sync_positions(positions_after, marks, atrs, as_of)
     cash_after = broker.cash()
     nav = cash_after + sum(s * marks[t] for t, s in positions_after.items())
 
@@ -132,6 +177,10 @@ def run_cycle(
         positions=positions_after,
         cash=cash_after,
         nav=nav,
+        swing_clamps=swing_clamps,
+        swing_exits=swing_exits,
+        portfolio_heat=heat,
+        stops=stops,
     )
 
 

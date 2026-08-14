@@ -37,12 +37,52 @@ from rich.console import Console
 
 from hedge_fund.backtesting import backtest_fund
 from hedge_fund.brokers import SimBroker
+from hedge_fund.config.swing_trading_config import PROFILES, get_profile
 from hedge_fund.data import CachedDataClient, FDClient, YahooDataClient
 from hedge_fund.fund import Fund, load_spec, normalize_universe
 from hedge_fund.paths import ensure_mandates_dir
 from hedge_fund.pipeline import run_cycle
 from hedge_fund.tui.keys import apply_credentials
 from hedge_fund.tui.shared import _BACKTEST_WEEKS
+
+
+_SWING_OVERRIDES = {
+    "risk_per_trade": "risk_per_trade",
+    "max_hold_days": "max_hold_days",
+    "max_position_size": "max_position_size",
+    "max_portfolio_heat": "max_portfolio_heat",
+    "avoid_earnings": "avoid_binary_events",
+}
+
+
+def _apply_swing_flags(args, spec) -> None:
+    """Fold --profile/--swing and the per-knob overrides into *spec*.
+
+    Precedence, most specific last: the mandate's own `swing:`, then
+    --profile (or --swing), then individual knob flags. When any knob is
+    overridden the result is registered as a distinct profile so the record
+    shows the values a run ACTUALLY used rather than the name of a preset it
+    no longer matches.
+    """
+    name = args.profile or ("aggressive_swing" if args.swing else None) or spec.swing
+    if name is None:
+        return
+
+    profile = get_profile(name)
+    changes = {
+        field: getattr(args, flag)
+        for flag, field in _SWING_OVERRIDES.items()
+        if getattr(args, flag, None) is not None
+    }
+
+    if changes:
+        profile = profile.model_copy(update={**changes, "name": f"{name}+custom"})
+        # Re-validate: the copy bypasses validators, and an override like
+        # risk_per_trade > max_portfolio_heat must still fail loud.
+        profile = type(profile).model_validate(profile.model_dump())
+        PROFILES[profile.name] = profile
+
+    spec.swing = profile.name
 
 
 def _open_data_client(args):
@@ -109,6 +149,43 @@ def main() -> None:
         help="directory to persist fetched bars in (yahoo only); makes repeat "
         "backtests offline and byte-identical",
     )
+    swing_group = parser.add_argument_group(
+        "swing mode",
+        "Overrides for the mandate's swing profile. All optional; without "
+        "them the fund runs exactly as its mandate specifies.",
+    )
+    swing_group.add_argument(
+        "--profile", choices=sorted(PROFILES),
+        help="run under this swing profile, overriding the mandate's `swing:`",
+    )
+    swing_group.add_argument(
+        "--swing", action="store_true",
+        help="shorthand for --profile aggressive_swing",
+    )
+    swing_group.add_argument(
+        "--risk-per-trade", type=float,
+        help="equity fraction risked to the initial stop, e.g. 0.03",
+    )
+    swing_group.add_argument(
+        "--max-hold-days", type=int,
+        help="force-close a position after this many bars, e.g. 10",
+    )
+    swing_group.add_argument(
+        "--max-position-size", type=float,
+        help="cap on any single position's weight, e.g. 0.25",
+    )
+    swing_group.add_argument(
+        "--max-portfolio-heat", type=float,
+        help="cap on summed open risk across the book, e.g. 0.12",
+    )
+    swing_group.add_argument(
+        "--avoid-earnings", dest="avoid_earnings", action="store_true",
+        default=None, help="refuse new entries into an imminent earnings print",
+    )
+    swing_group.add_argument(
+        "--no-avoid-earnings", dest="avoid_earnings", action="store_false",
+        help="allow entries in front of earnings",
+    )
     parser.add_argument("--out", help="also write the record JSON to this file")
     args = parser.parse_args()
 
@@ -129,6 +206,7 @@ def main() -> None:
 
     console = Console(stderr=True)  # status + summary on stderr; stdout stays pure JSON
     spec = load_spec(args.mandate)
+    _apply_swing_flags(args, spec)
     fund = Fund(spec)
 
     if args.backtest:
