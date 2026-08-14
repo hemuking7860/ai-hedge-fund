@@ -37,12 +37,23 @@ from rich.console import Console
 
 from hedge_fund.backtesting import backtest_fund
 from hedge_fund.brokers import SimBroker
-from hedge_fund.data import CachedDataClient, FDClient
+from hedge_fund.data import CachedDataClient, FDClient, YahooDataClient
 from hedge_fund.fund import Fund, load_spec, normalize_universe
 from hedge_fund.paths import ensure_mandates_dir
 from hedge_fund.pipeline import run_cycle
 from hedge_fund.tui.keys import apply_credentials
 from hedge_fund.tui.shared import _BACKTEST_WEEKS
+
+
+def _open_data_client(args):
+    """Build the run's data client from --data-source.
+
+    Returns a context manager either way, so both call sites stay identical
+    to the original FDClient() usage.
+    """
+    if args.data_source == "yahoo":
+        return YahooDataClient(cache_dir=args.data_cache)
+    return FDClient()
 
 
 def main() -> None:
@@ -86,6 +97,18 @@ def main() -> None:
         "(default: HEDGE_FUND_LLM_MODEL env, else the built-in default); quant models "
         "ignore it",
     )
+    parser.add_argument(
+        "--data-source", choices=("fd", "yahoo"), default="fd",
+        help="where bars and fundamentals come from. 'fd' (default) is "
+        "Financial Datasets and needs FINANCIAL_DATASETS_API_KEY. 'yahoo' is "
+        "keyless and serves real OHLCV bars, but has NO fundamentals — the "
+        "LLM investor agents abstain under it, so pair it with a quant mandate",
+    )
+    parser.add_argument(
+        "--data-cache",
+        help="directory to persist fetched bars in (yahoo only); makes repeat "
+        "backtests offline and byte-identical",
+    )
     parser.add_argument("--out", help="also write the record JSON to this file")
     args = parser.parse_args()
 
@@ -112,7 +135,7 @@ def main() -> None:
         start = args.start or (
             _date.fromisoformat(args.date) - timedelta(weeks=_BACKTEST_WEEKS)
         ).isoformat()
-        with FDClient() as raw:
+        with _open_data_client(args) as raw:
             fd = CachedDataClient(raw)
             with console.status(
                 f"[cyan]{spec.name}: backtesting {start} → {args.date} "
@@ -135,7 +158,7 @@ def main() -> None:
 
     broker = SimBroker(cash=spec.capital)
 
-    with FDClient() as raw:
+    with _open_data_client(args) as raw:
         fd = CachedDataClient(raw)
         n_models = sum(len(staff) for _, staff in fund.strategies)
         with console.status(

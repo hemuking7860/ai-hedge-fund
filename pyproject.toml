@@ -47,6 +47,11 @@ flake8 = "^6.1.0"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.pytest.ini_options]
+markers = [
+    "live: hits a real network endpoint; deselected by default",
+]
+
 [tool.black]
 line-length = 420
 target-version = ['py311']
