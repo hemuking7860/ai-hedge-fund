@@ -108,6 +108,15 @@ class SwingProfile(BaseModel):
         description="take profit at this many R; 0 disables. Off by default "
         "because a hard target caps the winners that pay for the losers",
     )
+    rebalance_band: float = Field(
+        ge=0, default=0.25,
+        description="do not re-size an OPEN position unless its new target "
+        "differs from what is held by more than this fraction. A swing trade "
+        "is sized once at entry and held to its exit; without a band, a daily "
+        "grid re-sizes every position every day as ATR wobbles, which turned "
+        "out to be 64%% of all orders in the 12-month backtest. 0 disables "
+        "the band and restores continuous rebalancing.",
+    )
 
     @model_validator(mode="after")
     def _hold_window_is_coherent(self) -> "SwingProfile":

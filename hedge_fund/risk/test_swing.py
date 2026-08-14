@@ -277,6 +277,38 @@ def test_full_stack_orders_stages_and_only_shrinks():
     assert {c.limit for c in result.clamps} >= {"event_gate"}
 
 
+def test_rebalance_band_holds_open_positions_steady():
+    """The band is what separates a swing book from a daily rebalancer."""
+    from hedge_fund.pipeline.swing import SwingContext
+
+    ctx = SwingContext(AGGRESSIVE_SWING)          # band = 0.25
+    held = {"A": 0.20, "B": 0.20, "C": 0.20}
+
+    out = ctx.damp({
+        "A": 0.22,     # +10%: inside the band -> no order
+        "B": 0.30,     # +50%: outside -> re-size
+        "C": 0.0,      # an exit -> must always execute
+    }, held)
+
+    assert out["A"] == 0.20, "small drift must not generate an order"
+    assert out["B"] == 0.30
+    assert out["C"] == 0.0, "exits are never damped"
+
+
+def test_rebalance_band_lets_new_entries_through():
+    from hedge_fund.pipeline.swing import SwingContext
+
+    ctx = SwingContext(AGGRESSIVE_SWING)
+    assert ctx.damp({"NEW": 0.25}, held_weights={})["NEW"] == 0.25
+
+
+def test_zero_band_restores_continuous_rebalancing():
+    from hedge_fund.pipeline.swing import SwingContext
+
+    ctx = SwingContext(AGGRESSIVE_SWING.model_copy(update={"rebalance_band": 0.0}))
+    assert ctx.damp({"A": 0.21}, {"A": 0.20})["A"] == 0.21
+
+
 def test_full_stack_returns_the_stops_sizing_assumed():
     result = apply_swing_risk(
         {"A": 0.25}, AGGRESSIVE_SWING,

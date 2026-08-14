@@ -136,7 +136,9 @@ def run_cycle(
         swing_risk = swing.gate(
             netted, marks, atrs, all_signals, held_weights, as_of, data_client
         )
-        netted = swing_risk.weights
+        # Hold open positions steady unless the target moved materially;
+        # otherwise a daily grid churns the book just by re-deriving weights.
+        netted = swing.damp(swing_risk.weights, held_weights)
         swing_clamps = swing_risk.clamps
         heat = swing_risk.heat_used
         stops = swing_risk.stops

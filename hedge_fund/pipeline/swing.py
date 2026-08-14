@@ -141,6 +141,35 @@ class SwingContext:
             held_weights=held_weights,
         )
 
+    def damp(
+        self,
+        weights: dict[str, float],
+        held_weights: dict[str, float],
+    ) -> dict[str, float]:
+        """Hold an open position at its current size unless the target moved
+        materially — the difference between a swing book and a rebalancer.
+
+        Without this, a daily grid re-derives every target from a wobbling
+        ATR and the executor trades the difference, so simply *holding* a
+        position emits an order almost every session. In the 12-month run
+        that accounted for 64% of all orders, and every one of them pays
+        spread in live trading while contributing nothing to the thesis.
+
+        A target of exactly zero is never damped: exits must always execute.
+        """
+        band = self.profile.rebalance_band
+        if band <= 0:
+            return weights
+
+        out = dict(weights)
+        for ticker, target in weights.items():
+            held = held_weights.get(ticker, 0.0)
+            if held == 0 or target == 0:
+                continue                       # entries and exits pass through
+            if abs(target - held) <= band * abs(held):
+                out[ticker] = held             # inside the band: leave it alone
+        return out
+
     def exits(
         self,
         held: list[str],
