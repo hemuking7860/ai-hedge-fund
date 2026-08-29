@@ -1,0 +1,84 @@
+{
+  "_README": [
+    "Reference data for YahooDataClient — sectors and earnings report dates.",
+    "Yahoo's chart endpoint serves bars only, so the two non-price facts a swing",
+    "desk actually needs (what sector a name sits in, and when it reports) are",
+    "recorded here. Sourced from TipRanks on 2026-08-14 and hand-checked.",
+    "",
+    "report_time matters and is not decoration: 'PreMarket' means the gap lands",
+    "on the report_date session itself, 'AfterHours' means it lands on the NEXT",
+    "session. The catalyst model uses this to decide which bar is dangerous.",
+    "",
+    "eps_surprise is BEAT/MISS vs consensus at the time. Dates beyond the last",
+    "reported quarter are SCHEDULED (no actual_eps) and exist so that",
+    "'exit before earnings' still fires at the right edge of the sample."
+  ],
+  "AMZN": {
+    "name": "Amazon.com, Inc.",
+    "sector": "Consumer Discretionary",
+    "industry": "Internet Retail",
+    "exchange": "NASDAQ",
+    "earnings": [
+      {"report_period": "2026-09-30", "report_date": "2026-10-22", "report_time": "Unknown"},
+      {"report_period": "2026-06-30", "report_date": "2026-07-30", "report_time": "AfterHours", "actual_eps": 5.75, "estimate_eps": 1.823, "eps_surprise": "BEAT"},
+      {"report_period": "2026-03-31", "report_date": "2026-04-29", "report_time": "AfterHours", "actual_eps": 2.78, "estimate_eps": 1.633, "eps_surprise": "BEAT"},
+      {"report_period": "2025-12-31", "report_date": "2026-02-05", "report_time": "AfterHours", "actual_eps": 1.95, "estimate_eps": 1.97, "eps_surprise": "MISS"},
+      {"report_period": "2025-09-30", "report_date": "2025-10-30", "report_time": "AfterHours", "actual_eps": 1.95, "estimate_eps": 1.568, "eps_surprise": "BEAT"},
+      {"report_period": "2025-06-30", "report_date": "2025-07-31", "report_time": "AfterHours", "actual_eps": 1.68, "estimate_eps": 1.329, "eps_surprise": "BEAT"},
+      {"report_period": "2025-03-31", "report_date": "2025-05-01", "report_time": "AfterHours", "actual_eps": 1.59, "estimate_eps": 1.366, "eps_surprise": "BEAT"},
+      {"report_period": "2024-12-31", "report_date": "2025-02-06", "report_time": "AfterHours", "actual_eps": 1.86, "estimate_eps": 1.486, "eps_surprise": "BEAT"},
+      {"report_period": "2024-09-30", "report_date": "2024-10-31", "report_time": "AfterHours", "actual_eps": 1.43, "estimate_eps": 1.14, "eps_surprise": "BEAT"},
+      {"report_period": "2024-06-30", "report_date": "2024-08-01", "report_time": "AfterHours", "actual_eps": 1.26, "estimate_eps": 1.034, "eps_surprise": "BEAT"}
+    ]
+  },
+  "MSFT": {
+    "name": "Microsoft Corporation",
+    "sector": "Information Technology",
+    "industry": "Software - Infrastructure",
+    "exchange": "NASDAQ",
+    "earnings": [
+      {"report_period": "2026-09-30", "report_date": "2026-10-27", "report_time": "Unknown"},
+      {"report_period": "2026-06-30", "report_date": "2026-07-29", "report_time": "AfterHours", "actual_eps": 4.74, "estimate_eps": 4.239, "eps_surprise": "BEAT"},
+      {"report_period": "2026-03-31", "report_date": "2026-04-29", "report_time": "AfterHours", "actual_eps": 4.27, "estimate_eps": 4.062, "eps_surprise": "BEAT"},
+      {"report_period": "2025-12-31", "report_date": "2026-01-28", "report_time": "AfterHours", "actual_eps": 4.14, "estimate_eps": 3.903, "eps_surprise": "BEAT"},
+      {"report_period": "2025-09-30", "report_date": "2025-10-29", "report_time": "AfterHours", "actual_eps": 4.13, "estimate_eps": 3.673, "eps_surprise": "BEAT"},
+      {"report_period": "2025-06-30", "report_date": "2025-07-30", "report_time": "AfterHours", "actual_eps": 3.65, "estimate_eps": 3.375, "eps_surprise": "BEAT"},
+      {"report_period": "2025-03-31", "report_date": "2025-04-30", "report_time": "AfterHours", "actual_eps": 3.46, "estimate_eps": 3.222, "eps_surprise": "BEAT"},
+      {"report_period": "2024-12-31", "report_date": "2025-01-29", "report_time": "AfterHours", "actual_eps": 3.23, "estimate_eps": 3.119, "eps_surprise": "BEAT"},
+      {"report_period": "2024-09-30", "report_date": "2024-10-30", "report_time": "AfterHours", "actual_eps": 3.30, "estimate_eps": 3.101, "eps_surprise": "BEAT"},
+      {"report_period": "2024-06-30", "report_date": "2024-07-30", "report_time": "AfterHours", "actual_eps": 2.95, "estimate_eps": 2.938, "eps_surprise": "BEAT"}
+    ]
+  },
+  "HCA": {
+    "name": "HCA Healthcare, Inc.",
+    "sector": "Health Care",
+    "industry": "Medical Care Facilities",
+    "exchange": "NYSE",
+    "earnings": [
+      {"report_period": "2026-09-30", "report_date": "2026-10-23", "report_time": "Unknown"},
+      {"report_period": "2026-06-30", "report_date": "2026-07-24", "report_time": "PreMarket", "actual_eps": 7.59, "estimate_eps": 7.562, "eps_surprise": "BEAT"},
+      {"report_period": "2026-03-31", "report_date": "2026-04-24", "report_time": "PreMarket", "actual_eps": 7.15, "estimate_eps": 7.124, "eps_surprise": "BEAT"},
+      {"report_period": "2025-12-31", "report_date": "2026-01-27", "report_time": "PreMarket", "actual_eps": 8.01, "estimate_eps": 7.459, "eps_surprise": "BEAT"},
+      {"report_period": "2025-09-30", "report_date": "2025-10-24", "report_time": "PreMarket", "actual_eps": 6.96, "estimate_eps": 5.792, "eps_surprise": "BEAT"},
+      {"report_period": "2025-06-30", "report_date": "2025-07-25", "report_time": "PreMarket", "actual_eps": 6.84, "estimate_eps": 6.294, "eps_surprise": "BEAT"},
+      {"report_period": "2025-03-31", "report_date": "2025-04-25", "report_time": "PreMarket", "actual_eps": 6.45, "estimate_eps": 5.749, "eps_surprise": "BEAT"},
+      {"report_period": "2024-12-31", "report_date": "2025-01-24", "report_time": "PreMarket", "actual_eps": 6.22, "estimate_eps": 6.13, "eps_surprise": "BEAT"},
+      {"report_period": "2024-09-30", "report_date": "2024-10-25", "report_time": "PreMarket", "actual_eps": 4.90, "estimate_eps": 4.958, "eps_surprise": "MISS"},
+      {"report_period": "2024-06-30", "report_date": "2024-07-23", "report_time": "PreMarket", "actual_eps": 5.50, "estimate_eps": 4.933, "eps_surprise": "BEAT"}
+    ]
+  },
+  "IBIT": {
+    "name": "iShares Bitcoin Trust ETF",
+    "sector": "Digital Assets",
+    "industry": "Spot Bitcoin ETF",
+    "exchange": "NASDAQ",
+    "earnings": []
+  },
+  "SPY": {
+    "name": "SPDR S&P 500 ETF Trust",
+    "sector": "Broad Market ETF",
+    "industry": "Large Blend",
+    "exchange": "ARCA",
+    "earnings": []
+  }
+}

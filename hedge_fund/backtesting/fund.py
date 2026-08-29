@@ -48,6 +48,16 @@ class FundBacktestMetrics(BaseModel):
     n_cycles: int
     n_orders: int
 
+    # Round-trip trade statistics, reconstructed from the fill ledger the
+    # same way for every fund — so a swing run and a stock run are directly
+    # comparable rather than each grading itself on its own scale.
+    n_trades: int = 0
+    win_rate: float = 0.0             # fraction of closed trades with pnl > 0
+    avg_hold_cycles: float = 0.0      # mean cycles held, in rebalance units
+    avg_win_pct: float = 0.0
+    avg_loss_pct: float = 0.0
+    profit_factor: float = 0.0        # gross wins / gross losses
+
 
 class FundBacktestResult(BaseModel):
     """A full backtest, serialized: the curve, the stats, and — because every
@@ -99,13 +109,23 @@ def backtest_fund(
         )
     grid = rebalance_grid(sorted(closes), spec.rebalance)
 
+    # Swing mode carries state across ticks (open stops, high-water marks,
+    # bars held), so the context is built once for the whole backtest — the
+    # same way the broker is. Building it per tick would reset every stop.
+    swing = None
+    if spec.swing is not None:
+        from hedge_fund.config.swing_trading_config import get_profile
+        from hedge_fund.pipeline.swing import SwingContext
+
+        swing = SwingContext(get_profile(spec.swing))
+
     broker = SimBroker(cash=spec.capital)
     records: list[CycleRecord] = []
     nav: list[float] = []
     benchmark_nav: list[float] = []
     base_close = closes[grid[0]]
     for i, as_of in enumerate(grid):
-        record = run_cycle(fund, as_of, broker, data_client, universe)
+        record = run_cycle(fund, as_of, broker, data_client, universe, swing=swing)
         records.append(record)
         nav.append(record.nav)
         benchmark_nav.append(spec.capital * closes[as_of] / base_close)
@@ -191,6 +211,12 @@ def _metrics(
             max_dd = drawdown
 
     benchmark_return = benchmark_nav[-1] / capital - 1
+    trades = _round_trip_trades(records)
+
+    wins = [t for t in trades if t > 0]
+    losses = [t for t in trades if t <= 0]
+    gross_win = sum(wins)
+    gross_loss = abs(sum(losses))
 
     return FundBacktestMetrics(
         total_return_pct=round(total, 6),
@@ -201,4 +227,67 @@ def _metrics(
         excess_return_pct=round(total - benchmark_return, 6),
         n_cycles=len(nav),
         n_orders=sum(len(r.orders) for r in records),
+        n_trades=len(trades),
+        win_rate=round(len(wins) / len(trades), 4) if trades else 0.0,
+        avg_hold_cycles=round(_avg_hold_cycles(records), 3),
+        avg_win_pct=round(gross_win / len(wins), 6) if wins else 0.0,
+        avg_loss_pct=round(-gross_loss / len(losses), 6) if losses else 0.0,
+        profit_factor=round(gross_win / gross_loss, 4) if gross_loss > 0 else 0.0,
     )
+
+
+def _round_trip_trades(records: list[CycleRecord]) -> list[float]:
+    """Reconstruct closed round-trip trades from the fill ledger.
+
+    A trade opens when a ticker's share count leaves zero and closes when it
+    returns to zero; its return is realised proceeds against average cost.
+    Adds to an existing position roll into the average rather than opening a
+    second trade, which matches how a desk would describe it.
+
+    Positions still open at the end of the backtest are excluded — an
+    unrealised mark is not a trade result, and counting it would let a
+    strategy bank its winners and hide its losers as "still working".
+    """
+    cost: dict[str, float] = {}      # ticker -> total cost of the open lot
+    shares: dict[str, int] = {}
+    proceeds: dict[str, float] = {}
+    closed: list[float] = []
+
+    for record in records:
+        for fill in record.fills:
+            ticker = fill.ticker
+            held = shares.get(ticker, 0)
+            if fill.side == "buy":
+                cost[ticker] = cost.get(ticker, 0.0) + fill.quantity * fill.price
+                shares[ticker] = held + fill.quantity
+            else:
+                if held <= 0:
+                    continue
+                sold = min(fill.quantity, held)
+                proceeds[ticker] = proceeds.get(ticker, 0.0) + sold * fill.price
+                shares[ticker] = held - sold
+
+                if shares[ticker] == 0:
+                    basis = cost.get(ticker, 0.0)
+                    if basis > 0:
+                        closed.append(proceeds[ticker] / basis - 1.0)
+                    cost[ticker] = 0.0
+                    proceeds[ticker] = 0.0
+
+    return closed
+
+
+def _avg_hold_cycles(records: list[CycleRecord]) -> float:
+    """Mean number of cycles a closed position was held, in rebalance units."""
+    opened_at: dict[str, int] = {}
+    spans: list[int] = []
+
+    for i, record in enumerate(records):
+        for ticker, count in record.positions.items():
+            if count > 0 and ticker not in opened_at:
+                opened_at[ticker] = i
+        for ticker in list(opened_at):
+            if record.positions.get(ticker, 0) == 0:
+                spans.append(i - opened_at.pop(ticker))
+
+    return sum(spans) / len(spans) if spans else 0.0

@@ -14,6 +14,7 @@ from hedge_fund.data.models import (
     Price,
 )
 from hedge_fund.data.protocol import DataClient
+from hedge_fund.data.yahoo import YahooClientError, YahooDataClient
 
 __all__ = [
     "CachedDataClient",
@@ -29,4 +30,6 @@ __all__ = [
     "FinancialMetrics",
     "InsiderTrade",
     "Price",
+    "YahooClientError",
+    "YahooDataClient",
 ]

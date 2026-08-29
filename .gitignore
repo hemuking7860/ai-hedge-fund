@@ -61,3 +61,6 @@ outputs/
 
 # Local-only release tooling
 scripts/release.sh
+
+# Local bar cache written by --data-cache
+.cache/

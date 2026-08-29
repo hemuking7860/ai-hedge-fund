@@ -8,12 +8,13 @@ these; `fund why AAPL` will answer from them alone.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hedge_fund.brokers.models import Fill, Order
 from hedge_fund.fund.spec import FundSpec
 from hedge_fund.models import Signal
 from hedge_fund.risk.limits import ClampEvent
+from hedge_fund.risk.swing import SwingClamp
 
 
 class TickerSkip(BaseModel):
@@ -31,6 +32,17 @@ class StrategyRecord(BaseModel):
     signals: list[Signal]               # this strategy's analysts x tradeable tickers
     convictions: dict[str, float]       # blended views, pre-scaling
     weights: dict[str, float]           # the sleeve, before netting across strategies
+
+
+class SwingExitRecord(BaseModel):
+    """One position the swing exit engine closed, and why."""
+
+    ticker: str
+    reason: str                         # STOP_LOSS, TRAILING_STOP, MAX_HOLD, ...
+    price: float                        # honest fill, gap-aware
+    r_multiple: float                   # P&L in units of initial risk
+    bars_held: int
+    detail: str = ""
 
 
 class CycleRecord(BaseModel):
@@ -55,3 +67,9 @@ class CycleRecord(BaseModel):
     positions: dict[str, int]           # signed shares after fills
     cash: float
     nav: float                          # cash + sum(shares * mark)
+
+    # -- swing mode; all empty/None on a stock (non-swing) cycle ----------
+    swing_clamps: list[SwingClamp] = Field(default_factory=list)
+    swing_exits: list[SwingExitRecord] = Field(default_factory=list)
+    portfolio_heat: float | None = None  # summed open risk after swing risk
+    stops: dict[str, float] = Field(default_factory=dict)  # ticker -> live stop
